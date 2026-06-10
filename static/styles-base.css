@@ -1,0 +1,130 @@
+/* ============================================
+   VIRTUAL_PLUMBER Dashboard Base Styles
+   ============================================ */
+
+:root {
+    --primary-color: #3b82f6;
+    --secondary-color: #64748b;
+    --accent-color: #ef4444;
+    --text-primary: #e5e7eb;
+    --text-secondary: #94a3b8;
+    --bg-primary: #0f172a;
+    --bg-secondary: #111827;
+    --bg-tertiary: #1e293b;
+    --border-color: #243244;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: radial-gradient(circle at top, #1e293b 0%, #0f172a 55%, #020617 100%);
+    color: var(--text-primary);
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
+/* ============ Header ============ */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(18px);
+}
+
+.header-content {
+    flex: 1;
+}
+
+.header-content h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.header-status {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+}
+
+.timestamp {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    display: none !important;
+}
+
+/* ============ Tabs Navigation ============ */
+.tabs-nav {
+    display: flex;
+    background: rgba(15, 23, 42, 0.9);
+    border-bottom: 2px solid var(--border-color);
+    flex-shrink: 0;
+    padding: 0 2rem;
+}
+
+/* ============ Main Content ============ */
+.content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-content {
+    display: none;
+    flex: 1;
+    overflow: hidden;
+    padding: 1.5rem 2rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============ Footer ============ */
+.footer {
+    background: rgba(15, 23, 42, 0.92);
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 2rem;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}

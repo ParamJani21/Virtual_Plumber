@@ -1,0 +1,9 @@
+Flask==2.3.3
+PyJWT==2.12.1
+requests>=2.32.4
+cryptography==41.0.7
+Flask-SQLAlchemy==3.0.5
+Flask-Migrate==4.0.5
+flask-session==0.5.0
+bcrypt==4.1.1
+Werkzeug==2.3.7

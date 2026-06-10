@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIRTUAL_PLUMBER - False Positive Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260609_v2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-base.css') }}?v=20260508">
+</head>
+<body class="{% if current_user_role == 'admin' %}admin{% endif %}">
+    <div class="container">
+        <header class="header">
+            <div class="header-left">
+                <h1>False Positive Management</h1>
+            </div>
+            <div class="header-right" style="display:flex;align-items:center;gap:0.75rem;">
+                <span id="fp-connection-status" class="fp-status-indicator"></span>
+                <a href="/dashboard" class="btn btn-secondary" style="background:#475569;color:white;border:none;padding:0.5rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;text-decoration:none;">&larr; Back to Dashboard</a>
+            </div>
+        </header>
+        <main class="content fp-content">
+            <!-- Stats summary -->
+            <div class="fp-stats" id="fp-stats">
+                <div class="stat-card"><span class="stat-label">Total Requests</span><span class="stat-value" id="stat-total">0</span></div>
+                <div class="stat-card"><span class="stat-label">Pending Operator</span><span class="stat-value" id="stat-pending-operator">0</span></div>
+                <div class="stat-card"><span class="stat-label">Pending Admin</span><span class="stat-value" id="stat-pending-admin">0</span></div>
+                <div class="stat-card"><span class="stat-label">Approved</span><span class="stat-value" id="stat-approved">0</span></div>
+                <div class="stat-card"><span class="stat-label">Rejected</span><span class="stat-value" id="stat-rejected">0</span></div>
+            </div>
+
+            <!-- Tabs -->
+            <nav class="fp-tabs" id="fp-tabs">
+                <button class="fp-tab-btn active" data-fp-view="my-requests">My Requests</button>
+                <button class="fp-tab-btn" data-fp-view="review-queue">Review Queue</button>
+                <button class="fp-tab-btn" data-fp-view="all-requests">All Requests</button>
+            </nav>
+
+            <!-- My Requests View -->
+            <div class="fp-view active" id="fp-view-my-requests">
+                <div class="fp-view-header">
+                    <h3>My Requests</h3>
+                    <div class="fp-search-bar">
+                        <input type="text" id="fp-search-my" placeholder="Search requests..." class="fp-search-input" oninput="filterMyRequests(this.value)">
+                    </div>
+                </div>
+                <div class="fp-request-list" id="fp-list-my-requests">
+                    <div class="fp-loading">Loading your requests...</div>
+                </div>
+            </div>
+
+            <!-- Review Queue View -->
+            <div class="fp-view" id="fp-view-review-queue">
+                <div class="fp-view-header">
+                    <h3>Review Queue</h3>
+                    <button class="btn-refresh" onclick="loadReviewQueue()">&#x21bb; Refresh</button>
+                </div>
+                <div class="fp-request-list" id="fp-list-review-queue">
+                    <div class="fp-loading">Loading review queue...</div>
+                </div>
+            </div>
+
+            <!-- All Requests View -->
+            <div class="fp-view" id="fp-view-all-requests">
+                <div class="fp-view-header">
+                    <h3>All Requests</h3>
+                    <select id="fp-status-filter" class="fp-filter-select" onchange="loadAllRequests()">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING_OPERATOR">Pending Operator</option>
+                        <option value="PENDING_ADMIN">Pending Admin</option>
+                        <option value="APPROVED_FP">Approved</option>
+                        <option value="OPERATOR_REJECTED">Rejected by Operator</option>
+                        <option value="ADMIN_REJECTED">Rejected by Admin</option>
+                        <option value="REVERTED_TO_TP">Reverted to TP</option>
+                    </select>
+                    <div class="fp-search-bar">
+                        <input type="text" id="fp-search-all" placeholder="Search requests..." class="fp-search-input" oninput="filterAllRequests(this.value)">
+                    </div>
+                </div>
+                <div class="fp-request-list" id="fp-list-all-requests">
+                    <div class="fp-loading">Loading all requests...</div>
+                </div>
+                <div class="fp-pagination" id="fp-pagination"></div>
+            </div>
+
+            <!-- Detail Overlay -->
+            <div class="fp-detail-overlay" id="fp-detail-overlay" style="display:none;">
+                <div class="overlay-backdrop" onclick="closeDetailOverlay()"></div>
+                <div class="overlay-content">
+                    <div class="overlay-header">
+                        <h3>Request Detail</h3>
+                        <button class="overlay-close" onclick="closeDetailOverlay()">&times;</button>
+                    </div>
+                    <div class="overlay-body" id="fp-detail-body">
+                        <div class="fp-loading">Loading detail...</div>
+                    </div>
+                    <div class="overlay-footer" id="fp-detail-footer"></div>
+                </div>
+            </div>
+
+            <!-- Status message toast -->
+            <div id="fp-toast-container" class="fp-toast-container"></div>
+
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='fp.js') }}?v=20260609_v3"></script>
+</body>
+</html>

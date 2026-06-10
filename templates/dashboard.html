@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIRTUAL_PLUMBER Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260609_v2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-base.css') }}?v=20260508">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-components.css') }}?v=20260510">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-responsive.css') }}?v=20260510">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body class="{% if current_user_role == 'admin' %}admin{% endif %}">
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>CI/CD Security Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <nav class="tabs-nav">
+                    <button class="tab-button active" data-tab="overview">
+                        <span class="tab-icon">📊</span> Overview
+                    </button>
+                    <button class="tab-button" data-tab="repos">
+                        <span class="tab-icon">📦</span> Repositories
+                    </button>
+                    <button class="tab-button" data-tab="history">
+                        <span class="tab-icon">📜</span> Scan History
+                    </button>
+                    <button class="tab-button" data-tab="settings">
+                        <span class="tab-icon">⚙️</span> Settings
+                    </button>
+                    <button class="tab-button" data-tab="users">
+                        <span class="tab-icon">👥</span> Users
+                    </button>
+                    <button class="tab-button admin-only" data-tab="activity">
+                        <span class="tab-icon">📋</span> Activity
+                    </button>
+                    <button class="tab-button" data-tab="false-positives">
+                        <span class="tab-icon">✅</span> FP Management
+                    </button>
+                </nav>
+                <button class="refresh-btn" id="refresh-btn" onclick="refreshAllData()" title="Refresh all data">
+                    <span class="refresh-icon">⟳</span>
+                </button>
+                <button class="notif-btn" id="notif-btn" onclick="switchTab('false-positives')" title="Review Queue">
+                    <span class="notif-icon">🔔</span>
+                    <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+                </button>
+                <!-- User Menu -->
+                <div class="user-menu">
+                    <button class="user-menu-btn" id="user-menu-toggle">
+                        <span class="user-icon">👤</span>
+                        <span class="username" id="current-username">User</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="user-dropdown" id="user-dropdown">
+                        <a href="/auth/change-password" class="dropdown-item">
+                            <span class="item-icon">🔐</span> Change Password
+                        </a>
+                        <hr class="dropdown-divider">
+                        <button class="dropdown-item logout-btn" onclick="logout()">
+                            <span class="item-icon">🚪</span> Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Content -->
+        <main class="content">
+            <!-- Overview Tab -->
+            <div class="tab-content active" id="overview-tab">
+                <div class="overview-grid">
+                    <!-- Left Column: Recent Scans Chart -->
+                    <div class="overview-column left-column">
+                        <div class="summary-section chart-section">
+                            <h2>Recent Scan Results</h2>
+                            <div class="chart-container">
+                                <div class="chart-wrapper">
+                                    <canvas id="scansChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Scan Status -->
+                    <div class="overview-column right-column">
+                        <div class="summary-section">
+                            <h2>Scan Status</h2>
+                            <div id="scan-status-container" style="padding: 1rem; color: #64748b;">
+                                Ready to scan
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Repositories Tab -->
+            <div class="tab-content" id="repos-tab">
+                <div class="repos-container">
+                    <div class="repos-header">
+                        <h2>Repository Status</h2>
+                        <div class="repos-header-right">
+                            <button class="scan-all-btn" onclick="scanAllRepos()">
+                                🔍 SCAN ALL REPOS
+                            </button>
+                            <div class="repos-stats">
+                                <span class="stat-item">Total: <strong>{{ repos_stats.total }}</strong></span>
+                                <span class="stat-item passed">Passed: <strong>{{ repos_stats.passed }}</strong></span>
+                                <span class="stat-item failed">Failed: <strong>{{ repos_stats.failed }}</strong></span>
+                                <span class="stat-item warning">Warning: <strong>{{ repos_stats.warning }}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="repos-search">
+                        <input type="text" id="repos-search-input" class="repo-search-input" placeholder="Search repositories..." oninput="filterRepos(this.value)">
+                    </div>
+                    <div class="repos-grid">
+                        <div class="table-header">
+                            <div class="col-repo-name">Repository Name</div>
+                            <div class="col-repo-id">ID</div>
+                            <div class="col-repo-branch">Branch</div>
+                            <div class="col-repo-action">Action</div>
+                        </div>
+                        <div class="repos-list" id="repos-list">
+                            <!-- Repos will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-content" id="history-tab">
+                <div class="history-container">
+                    <div class="history-header">
+                        <h2>Scan History</h2>
+                        <div class="history-stats">
+                            <button class="filter-toggle-btn" onclick="toggleFilterPanel()">
+                                🔍 FILTER
+                            </button>
+                            <button class="export-report-btn" onclick="exportReport()">
+                                📥 EXPORT REPORT
+                            </button>
+                            <span class="stat-item">Total Scans: <strong id="total-scans">{{ history_stats.total_scans }}</strong></span>
+                            <span class="stat-item passed">Total Findings: <strong id="total-findings">{{ history_stats.total_findings }}</strong></span>
+                            <span class="stat-item failed">Critical: <strong id="critical-issues">{{ history_stats.critical_issues }}</strong></span>
+                            <button id="delete-scans-btn" class="delete-btn" style="display: none;" onclick="deleteSelectedScans()">
+                                🗑️ Delete (<span id="selected-count">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Slide Panel -->
+                    <div class="filter-panel" id="filter-panel">
+                        <div class="filter-panel-header">
+                            <h3>Filter Findings</h3>
+                            <button class="filter-panel-close" onclick="toggleFilterPanel()">&times;</button>
+                        </div>
+                        <div class="filter-panel-body">
+                            <div class="filter-section">
+                                <label>Search</label>
+                                <input type="text" id="findingsSearch" class="filter-input" placeholder="Search filename, title, message...">
+                            </div>
+                            <div class="filter-section">
+                                <label>Severity</label>
+                                <div class="filter-checkboxes">
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="severity-filter" value="CRITICAL"> 
+                                        <span class="severity-badge critical">CRITICAL</span>
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="severity-filter" value="HIGH"> 
+                                        <span class="severity-badge high">HIGH</span>
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="severity-filter" value="MEDIUM"> 
+                                        <span class="severity-badge medium">MEDIUM</span>
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="severity-filter" value="LOW"> 
+                                        <span class="severity-badge low">LOW</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="filter-section">
+                                <label>Tool</label>
+                                <div class="filter-checkboxes">
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="tool-filter" value="opengrep"> OpenGrep
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="tool-filter" value="truffle"> TruffleHog
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="tool-filter" value="trivy"> Trivy
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="filter-section">
+                                <label>Category</label>
+                                <div class="filter-checkboxes">
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="category-filter" value="secrets"> Secrets
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="category-filter" value="code"> Code
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="checkbox" class="category-filter" value="dependencies"> Dependencies
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-panel-footer">
+                            <button class="btn-secondary" onclick="clearFilters()">Clear All</button>
+                            <button class="btn-primary" onclick="applyFilters(); toggleFilterPanel();">Apply Filters</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Export Report Modal -->
+                    <div class="export-modal" id="export-modal">
+                        <div class="export-modal-content">
+                            <div class="export-modal-header">
+                                <h3>Export Report Options</h3>
+                                <button class="export-modal-close" onclick="closeExportModal()">&times;</button>
+                            </div>
+                            <div class="export-modal-body">
+                                <div class="export-section">
+                                    <label>Filter by Date Range</label>
+                                    <div class="export-date-range">
+                                        <input type="date" id="export-date-from" class="export-date-input">
+                                        <span>to</span>
+                                        <input type="date" id="export-date-to" class="export-date-input">
+                                    </div>
+                                </div>
+                                <div class="export-section">
+                                    <label>Filter by Severity</label>
+                                    <div class="export-checkboxes">
+                                        <label class="export-checkbox"><input type="checkbox" id="export-critical" value="CRITICAL"><span class="severity-badge critical">CRITICAL</span></label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-high" value="HIGH"><span class="severity-badge high">HIGH</span></label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-medium" value="MEDIUM"><span class="severity-badge medium">MEDIUM</span></label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-low" value="LOW"><span class="severity-badge low">LOW</span></label>
+                                    </div>
+                                </div>
+                                <div class="export-section">
+                                    <label>Filter by Tool (leave empty for all)</label>
+                                    <div class="export-checkboxes">
+                                        <label class="export-checkbox"><input type="checkbox" id="export-opengrep" value="opengrep"> OpenGrep</label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-snyk" value="snyk"> Snyk</label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-truffle" value="truffle"> TruffleHog</label>
+                                        <label class="export-checkbox"><input type="checkbox" id="export-trivy" value="trivy"> Trivy</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="export-modal-footer">
+                                <button class="btn-secondary" onclick="closeExportModal()">Cancel</button>
+                                <button class="btn-primary" onclick="confirmExport()">Export HTML Report</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="history-search">
+                        <input type="text" id="history-search-input" class="repo-search-input" placeholder="Search by repository, branch, or PR number..." oninput="filterHistory(this.value)">
+                    </div>
+                    <div class="history-grid">
+                        <div class="table-header">
+                            <div class="col-checkbox">
+                                <input type="checkbox" id="select-all-scans" onclick="toggleSelectAllScans()">
+                            </div>
+                            <div class="col-time">Timestamp</div>
+                            <div class="col-repo">Repository</div>
+                            <div class="col-branch">Branch</div>
+                             <div class="col-total">Total</div>
+                             <div class="col-severity">Severity</div>
+                             <div class="col-multi">Multi</div>
+                        </div>
+                        <div class="history-list" id="history-list">
+                            <!-- History will be loaded here -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings-tab">
+                <div class="settings-container">
+                    <div class="settings-grid">
+                        <!-- PR Scan Toggle -->
+                        <div class="settings-section" style="grid-column: 1 / -1;">
+                            <div class="pr-scan-setting">
+                                <div class="pr-scan-info">
+                                    <h4>Pull Request Scanning</h4>
+                                    <p>When enabled, all PRs are automatically scanned. When disabled, PRs are logged but not scanned.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="pr-scan-toggle" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="pr-block-setting" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155;">
+                                <div class="pr-block-row" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                                    <div class="pr-block-info" style="flex: 1;">
+                                        <h4>Block PR on Findings</h4>
+                                        <p style="margin: 0; color: #94a3b8; font-size: 0.82rem;">Set PR status to failure when findings meet the severity threshold below.</p>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="pr-block-toggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="pr-threshold-row" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem;">
+                                    <label for="pr-block-severity" style="color: #94a3b8; font-size: 0.85rem; white-space: nowrap;">Block from severity:</label>
+                                    <select id="pr-block-severity" style="padding: 0.4rem 0.6rem; background: #1e293b; border: 1px solid #334155; border-radius: 4px; color: #e2e8f0; font-size: 0.85rem;">
+                                        <option value="CRITICAL">Critical and above</option>
+                                        <option value="HIGH" selected>High and above</option>
+                                        <option value="MEDIUM">Medium and above</option>
+                                        <option value="LOW">Low and above</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ngrok Subdomain -->
+                        <div class="settings-section" style="grid-column: 1 / -1;">
+                            <div class="form-group">
+                                <label for="ngrok_subdomain">Ngrok Subdomain</label>
+                                <input type="text" id="ngrok_subdomain" placeholder="your-custom-subdomain" class="form-input">
+                                <small style="color: #94a3b8; margin-top: 4px; display: block;">Enter your custom ngrok subdomain (e.g., my-app in my-app.ngrok-free.app)</small>
+                            </div>
+                        </div>
+
+                        <!-- GitHub Credentials -->
+                        <div class="settings-section github-settings-section">
+                            <h3>GitHub App Configuration</h3>
+                            <form id="github-credentials-form" class="github-form">
+                                <div class="form-group">
+                                    <label for="github_app_id">GitHub App ID</label>
+                                    <input 
+                                        type="text" 
+                                        id="github_app_id" 
+                                        name="github_app_id" 
+                                        placeholder="Enter your GitHub App ID"
+                                        class="form-input"
+                                    />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="github_app_name">GitHub App Name</label>
+                                    <input 
+                                        type="text" 
+                                        id="github_app_name" 
+                                        name="github_app_name" 
+                                        placeholder="Enter your GitHub App Name"
+                                        class="form-input"
+                                    />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="github_secret_key">GitHub Secret Key (RSA Private Key)</label>
+                                    <div class="secret-key-wrapper">
+                                        <textarea 
+                                            id="github_secret_key" 
+                                            name="github_secret_key" 
+                                            placeholder="Private key is stored securely. Click 'Replace Key' to provide a new one."
+                                            class="form-textarea"
+                                            rows="6"
+                                            readonly
+                                        ></textarea>
+                                        <div class="secret-actions">
+                                            <button type="button" id="replace-key-btn" class="btn-secondary">Replace Key</button>
+                                            <button type="button" id="cancel-replace-btn" class="btn-secondary" style="display:none;">Cancel</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="ngrok_oauth_token">Ngrok OAuth Token</label>
+                                    <div class="password-input-wrapper">
+                                        <input 
+                                            type="password" 
+                                            id="ngrok_oauth_token" 
+                                            name="ngrok_oauth_token" 
+                                            placeholder="Enter your Ngrok OAuth Token"
+                                            class="form-input"
+                                        />
+                                        <button type="button" class="password-toggle-btn" onclick="togglePassword('ngrok_oauth_token', this)">👁️</button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="github_webhook_secret">GitHub Webhook Secret</label>
+                                    <div class="password-input-wrapper">
+                                        <input 
+                                            type="password" 
+                                            id="github_webhook_secret" 
+                                            name="github_webhook_secret" 
+                                            placeholder="Enter your GitHub Webhook Secret"
+                                            class="form-input"
+                                        />
+                                        <button type="button" class="password-toggle-btn" onclick="togglePassword('github_webhook_secret', this)">👁️</button>
+                                    </div>
+                                    <small style="color: #94a3b8; margin-top: 4px; display: block;">Found in GitHub App Settings → Webhooks</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="flask_secret_key">Flask Secret Key</label>
+                                    <div class="password-input-wrapper">
+                                        <input 
+                                            type="password" 
+                                            id="flask_secret_key" 
+                                            name="flask_secret_key" 
+                                            placeholder="Enter new Flask Secret Key or leave empty to keep current"
+                                            class="form-input"
+                                        />
+                                        <button type="button" class="password-toggle-btn" onclick="togglePassword('flask_secret_key', this)">👁️</button>
+                                    </div>
+                                    <small style="color: #94a3b8; margin-top: 4px; display: block;">Required for session security. Leave empty to keep current key.</small>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="submit" class="btn-save">Save Credentials</button>
+                                </div>
+
+                                <div class="form-status" id="settings-status">
+                                    <!-- Status messages will appear here -->
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Tab (Admin Only) -->
+            <div class="tab-content" id="users-tab">
+                <div class="users-container">
+                    <div class="users-header">
+                        <h2>User Management</h2>
+                        <button class="btn-primary" onclick="showCreateUserModal()">+ Create User</button>
+                    </div>
+                    <div class="users-table-container">
+                        <table class="users-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Full Name</th>
+                                    <th>Department</th>
+                                    <th>Role</th>
+                                    <th>Created</th>
+                                    <th>Last Login</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-list">
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Tab (Admin Only) -->
+            <div class="tab-content" id="activity-tab">
+                <div class="activity-container">
+                    <!-- User Cards View -->
+                    <div id="user-cards-view">
+                        <div class="activity-header">
+                            <h2>Activity Log</h2>
+                            <div class="activity-filters">
+                                <select id="activity-days-filter" onchange="loadActivityUsers()">
+                                    <option value="7">Last 7 days</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                    <option value="90">Last 90 days</option>
+                                    <option value="0">All time</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="user-cards" id="user-cards">
+                            <div class="activity-loading">Loading users with activity...</div>
+                        </div>
+                    </div>
+                    <!-- Inline User Activity View -->
+                    <div id="user-activity-inline" style="display: none;">
+                        <div class="activity-header">
+                            <button class="back-btn" onclick="backToUserCards()">&larr; Back</button>
+                            <h2 id="inline-activity-title">Activity</h2>
+                            <div class="user-badge" id="inline-user-badge"></div>
+                            <div class="activity-filters">
+                                <select id="inline-action-filter" onchange="loadInlineUserLogs()">
+                                    <option value="">All Actions</option>
+                                    <option value="LOGIN_SUCCESS">Login</option>
+                                    <option value="LOGIN_FAILED">Login Failed</option>
+                                    <option value="USER_CREATED">User Created</option>
+                                    <option value="USER_UPDATED">User Updated</option>
+                                    <option value="USER_DELETED">User Deleted</option>
+                                    <option value="SCAN_TRIGGERED">Scan Triggered</option>
+                                    <option value="SCAN_ALL_TRIGGERED">Scan All</option>
+                                    <option value="PASSWORD_CHANGED">Password</option>
+                                    <option value="LOGOUT">Logout</option>
+                                    <option value="REPORT_EXPORTED">Report Exported</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="activity-list" id="inline-activity-list">
+                            <div class="activity-loading">Loading activity...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create/Edit User Modal -->
+            <div id="user-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="user-modal-title">Create User</h3>
+                        <button class="modal-close" onclick="closeUserModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="user-form">
+                            <input type="hidden" id="user-id">
+                            <div class="form-group">
+                                <label for="user-username">Username</label>
+                                <input type="text" id="user-username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-email">Email</label>
+                                <input type="email" id="user-email">
+                            </div>
+                            <div class="form-group" id="password-group">
+                                <label for="user-password">Password</label>
+                                <div class="password-input-wrapper">
+                                    <input type="password" id="user-password" class="form-input">
+                                    <button type="button" class="password-toggle-btn" onclick="togglePassword('user-password', this)">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="user-fullname">Full Name</label>
+                                <input type="text" id="user-fullname">
+                            </div>
+                            <div class="form-group">
+                                <label for="user-department">Department</label>
+                                <input type="text" id="user-department">
+                            </div>
+                            <div class="form-group">
+                                 <label for="user-role">Role</label>
+                                 <select id="user-role">
+                                     <option value="viewer">Viewer</option>
+                                     <option value="operator">Operator</option>
+                                     <option value="admin">Admin</option>
+                                 </select>
+                             </div>
+                            <div class="modal-actions">
+                                <button type="button" class="btn-secondary" onclick="closeUserModal()">Cancel</button>
+                                <button type="submit" class="btn-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- False Positives Tab -->
+            <div class="tab-content" id="false-positives-tab">
+                <div class="fp-inline-container" id="fp-inline-container">
+                    <div id="fp-inline-content">
+                        <div class="loading">Loading False Positive Management...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Scan Options Modal -->
+    <div id="scan-options-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select Scan Types</h3>
+                <span class="modal-close" onclick="closeScanModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle">Choose which scan types to run:</p>
+                <div class="scan-options">
+                    <label class="scan-option">
+                        <input type="checkbox" id="scan-sats" value="sats" checked>
+                        <span class="option-label">🛡️ SATS</span>
+                        <span class="option-desc">Static Analysis (OpenGrep + Slither)</span>
+                    </label>
+                    <label class="scan-option">
+                        <input type="checkbox" id="scan-sbom" value="sbom" checked>
+                        <span class="option-label">📦 SBOM</span>
+                        <span class="option-desc">Software Bill of Materials (Trivy)</span>
+                    </label>
+                    <label class="scan-option">
+                        <input type="checkbox" id="scan-secret" value="secret" checked>
+                        <span class="option-label">🔐 SECRET</span>
+                        <span class="option-desc">Secret Scanning (TruffleHog)</span>
+                    </label>
+                    <label class="scan-option">
+                        <input type="checkbox" id="scan-snyk" value="snyk" checked>
+                        <span class="option-label">🔬 SNYK</span>
+                        <span class="option-desc">Snyk SAST + Open Source (requires SNYK_TOKEN)</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" onclick="closeScanModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="confirm-scan-btn" onclick="confirmScan()">🚀 Start Scan</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}?v=20260609_v10"></script>
+    <script src="{{ url_for('static', filename='fp.js') }}?v=20260609_v4"></script>
+
+<div id="scan-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:#0b1120;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow-y:auto;">
+    <div style="padding:0.5rem;">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+            <button class="back-btn" onclick="closeScanDetail()" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem;">&larr; Back</button>
+            <h1 id="scan-overlay-title" style="font-size:1.3rem;color:#f1f5f9;margin:0;">Scan Detail</h1>
+        </div>
+        <div id="scan-overlay-content" style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:1.5rem;">
+            <div style="text-align:center;padding:3rem;color:#64748b;">Loading scan details...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('scan-overlay').style.display !== 'none') {
+        closeScanDetail();
+    }
+});
+</script>
+</body>
+</html>

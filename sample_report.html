@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Scan Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            border: 1px solid #2a2a2a;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #0d1117 100%);
+            color: #ffffff;
+            padding: 40px;
+            text-align: center;
+            border-bottom: 2px solid #30363d;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .header .subtitle {
+            color: #8b949e;
+            font-size: 1rem;
+        }
+        
+        .header .meta {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            font-size: 0.9rem;
+            color: #c9d1d9;
+        }
+        
+        .summary-section {
+            background: #161b22;
+            padding: 30px 40px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .summary-section h2 {
+            color: #f0f6fc;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+        
+        .stat-card {
+            background: #21262d;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #30363d;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .stat-card .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #8b949e;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card.critical .number { color: #f85149; }
+        .stat-card.high .number { color: #f0883e; }
+        .stat-card.medium .number { color: #d29922; }
+        .stat-card.low .number { color: #3fb950; }
+        
+        .scan-section {
+            background: #161b22;
+            padding: 30px 40px;
+            border-bottom: 1px solid #30363d;
+        }
+        
+        .scan-section:last-of-type {
+            border-bottom: none;
+        }
+        
+        .scan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #30363d;
+        }
+        
+        .scan-header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .scan-header h3 {
+            color: #f0f6fc;
+            font-size: 1.3rem;
+            margin: 0;
+        }
+        
+        .scan-repo-info {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #8b949e;
+        }
+        
+        .scan-repo-info span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .scan-meta {
+            display: flex;
+            gap: 20px;
+            color: #8b949e;
+            font-size: 0.9rem;
+        }
+        
+        .severity-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .severity-badge.critical {
+            background: rgba(248, 81, 73, 0.15);
+            color: #f85149;
+            border: 1px solid #f85149;
+        }
+        
+        .severity-badge.high {
+            background: rgba(240, 136, 62, 0.15);
+            color: #f0883e;
+            border: 1px solid #f0883e;
+        }
+        
+        .severity-badge.medium {
+            background: rgba(210, 153, 34, 0.15);
+            color: #d29922;
+            border: 1px solid #d29922;
+        }
+        
+        .severity-badge.low {
+            background: rgba(63, 185, 80, 0.15);
+            color: #3fb950;
+            border: 1px solid #3fb950;
+        }
+        
+        .findings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            table-layout: fixed;
+        }
+        
+        .findings-table th {
+            background: #21262d;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #c9d1d9;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #30363d;
+        }
+        
+        .findings-table td {
+            padding: 15px;
+            border-bottom: 1px solid #30363d;
+            vertical-align: top;
+            color: #c9d1d9;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+        
+        .findings-table tr:hover {
+            background: #1f2428;
+        }
+        
+        .finding-type {
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-top: 3px;
+        }
+        
+        .finding-version {
+            font-size: 0.8rem;
+            margin-top: 2px;
+            color: #8b949e;
+        }
+        
+        .finding-group-header {
+            cursor: pointer;
+        }
+        
+        .finding-group-header td {
+            padding: 10px 15px !important;
+            background: #1c2333 !important;
+            border-bottom: 2px solid #30363d !important;
+        }
+        
+        .finding-group-header:hover td {
+            background: #243447 !important;
+        }
+        
+        .group-toggle-icon {
+            font-size: 0.75rem;
+            color: #8b949e;
+            width: 16px;
+            flex-shrink: 0;
+        }
+        
+        .group-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .group-name {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #f0f6fc;
+            font-family: monospace;
+        }
+        
+        .group-count {
+            font-size: 0.75rem;
+            color: #8b949e;
+            background: #21262d;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        .no-findings {
+            text-align: center;
+            padding: 40px;
+            color: #3fb950;
+            font-weight: 500;
+        }
+        
+        .no-findings .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .footer {
+            background: #0d1117;
+            color: #8b949e;
+            padding: 20px 40px;
+            text-align: center;
+            font-size: 0.85rem;
+            border-top: 1px solid #30363d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🛡️ Security Scan Report</h1>
+            <p class="subtitle">Comprehensive security findings across all repositories</p>
+            <div class="meta">
+                <span>📅 Generated: {generated_time}</span>
+                <span>📦 Repos Scanned: {total_repos}</span>
+                <span>🔍 Total Findings: {total_findings}</span>
+            </div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="summary-section">
+            <h2>📊 Executive Summary</h2>
+            <div class="stats-grid">
+                <div class="stat-card critical">
+                    <div class="number">{critical_count}</div>
+                    <div class="label">Critical</div>
+                </div>
+                <div class="stat-card high">
+                    <div class="number">{high_count}</div>
+                    <div class="label">High</div>
+                </div>
+                <div class="stat-card medium">
+                    <div class="number">{medium_count}</div>
+                    <div class="label">Medium</div>
+                </div>
+                <div class="stat-card low">
+                    <div class="number">{low_count}</div>
+                    <div class="label">Low</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan Sections - Sorted: findings first, then no findings last -->
+        <!-- Each scan: sorted by severity CRITICAL > HIGH > MEDIUM > LOW -->
+        <!-- Scans with findings appear first, clean scans at end -->
+        
+        {scan_sections}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Report generated by <strong>VIRTUAL_PLUMBER</strong> Scanner</p>
+            <p>Tools: OpenGrep | TruffleHog | Trivy (SBOM) | Snyk (SAST | SBOM)</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Detail - {{ scan_id }} - VIRTUAL_PLUMBER</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260509_v1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0b1120;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .page-wrap {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .top-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .top-bar .back-btn {
+            background: #1e293b;
+            color: #94a3b8;
+            border: 1px solid #334155;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .top-bar .back-btn:hover { background: #334155; color: #e2e8f0; }
+        .top-bar h1 { font-size: 1.3rem; color: #f1f5f9; }
+        .scan-content {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .detail-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 1rem;
+        }
+        .detail-card h5 {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+        }
+        .detail-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0;
+            font-size: 0.85rem;
+        }
+        .detail-stat .stat-label { color: #94a3b8; }
+        .detail-stat .stat-value { font-weight: 600; color: #e2e8f0; }
+        .detail-stat .stat-value.critical { color: #ef4444; }
+        .detail-stat .stat-value.high { color: #f97316; }
+        .detail-stat .stat-value.medium { color: #eab308; }
+        .detail-stat .stat-value.low { color: #22c55e; }
+        .detail-stat.highlight .stat-value { color: #3b82f6; }
+        .loading, .empty {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+        .findings-list h5 {
+            margin-bottom: 0.75rem;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .finding-file-group {
+            border: 1px solid #334155;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+        }
+        .finding-file-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.75rem;
+            background: #1e293b;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .finding-file-header:hover { background: #263548; }
+        .file-group-toggle { color: #64748b; font-size: 0.7rem; width: 14px; }
+        .file-group-name { font-weight: 600; color: #e2e8f0; flex: 1; }
+        .file-group-count { color: #94a3b8; font-size: 0.8rem; }
+        .file-group-severities { display: flex; gap: 4px; }
+        .finding-tool-group { border-top: 1px solid #1e293b; }
+        .finding-tool-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem 0.5rem 2rem;
+            background: #0f172a;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .finding-tool-header:hover { background: #1a2332; }
+        .tool-group-toggle { color: #64748b; font-size: 0.7rem; width: 14px; }
+        .tool-group-name { color: #a78bfa; font-weight: 500; }
+        .finding-package-group { border-top: 1px solid #1e293b; }
+        .finding-package-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.4rem 0.75rem 0.4rem 3.5rem;
+            background: #0a0f1a;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .finding-package-header:hover { background: #141e2d; }
+        .package-group-toggle { color: #64748b; font-size: 0.7rem; width: 14px; }
+        .package-group-name { color: #e2e8f0; }
+        .finding-item {
+            padding: 0.6rem 0.75rem 0.6rem 4.5rem;
+            border-top: 1px solid #1a1a2e;
+            font-size: 0.8rem;
+        }
+        .finding-item:hover { background: #0f172a; }
+        .finding-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+        .finding-file { color: #64748b; font-family: monospace; font-size: 0.75rem; }
+        .finding-type { color: #64748b; font-size: 0.7rem; font-style: italic; }
+        .finding-title { color: #e2e8f0; font-weight: 500; }
+        .finding-message { color: #94a3b8; font-size: 0.75rem; margin-top: 0.2rem; }
+        .msg-section {
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background: rgba(15,23,42,0.4);
+            border-left: 2px solid #334155;
+            border-radius: 0 4px 4px 0;
+        }
+        .msg-section-heading {
+            display: block;
+            color: #e2e8f0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .msg-section-body {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .finding-version { font-size: 0.75rem; margin-top: 0.2rem; }
+        .version-installed { color: #f87171; }
+        .version-fixed { color: #4ade80; }
+        .finding-cwe { color: #64748b; font-size: 0.7rem; margin-top: 0.2rem; }
+        .source-badges { display: flex; gap: 4px; margin-top: 0.25rem; flex-wrap: wrap; }
+        .source-badge {
+            background: #334155; color: #a78bfa; font-size: 0.65rem;
+            padding: 1px 6px; border-radius: 3px;
+        }
+        .source-filter-btn {
+            background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+            padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; transition: all 0.15s;
+        }
+        .source-filter-btn:hover { background: #334155; color: #f1f5f9; }
+        .source-filter-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+        .severity-badge {
+            display: inline-block; padding: 2px 6px; border-radius: 4px;
+            font-size: 0.65rem; font-weight: 700; min-width: 24px; text-align: center;
+        }
+        .severity-badge.critical { background: #dc2626; color: white; }
+        .severity-badge.high { background: #ea580c; color: white; }
+        .severity-badge.medium { background: #ca8a04; color: white; }
+        .severity-badge.low { background: #16a34a; color: white; }
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+        <div class="top-bar">
+            <button class="back-btn" onclick="goBack()">&larr; Back</button>
+            <h1>Scan: {{ scan_id }}</h1>
+        </div>
+        <div class="scan-content" id="scan-content">
+            <div class="loading">Loading scan details...</div>
+        </div>
+    </div>
+
+    <script>
+        const SCAN_ID = {{ scan_id | tojson }};
+
+        function goBack() {
+            localStorage.setItem('activeTab', 'history');
+            window.location.href = '/dashboard';
+        }
+
+        function esc(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        function getWorstSeverity(findings) {
+            var order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
+            for (var i = 0; i < order.length; i++) {
+                for (var j = 0; j < findings.length; j++) {
+                    if ((findings[j].severity || '').toUpperCase() === order[i]) {
+                        return order[i].charAt(0) + order[i].slice(1).toLowerCase();
+                    }
+                }
+            }
+            return 'INFO';
+        }
+
+        function toggleFindingMsg(id, link) {
+            var shortEl = document.getElementById(id + '-short');
+            var fullEl = document.getElementById(id + '-full');
+            if (!shortEl || !fullEl) return;
+            var showing = fullEl.style.display !== 'none';
+            shortEl.style.display = showing ? '' : 'none';
+            fullEl.style.display = showing ? 'none' : '';
+            link.textContent = showing ? 'Show more' : 'Show less';
+        }
+
+        function formatScannerMsg(msg, baseId) {
+            if (!msg) return '';
+            var safe = String(msg).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+            var sectionRegex = /##\s+(.+?)\n([\s\S]*?)(?=\n##\s+|$)/g;
+            var sections = [];
+            var match;
+            while ((match = sectionRegex.exec(msg)) !== null) {
+                sections.push({ heading: match[1].trim(), body: match[2].trim() });
+            }
+            if (sections.length === 0) {
+                if (safe.length <= 300) return safe;
+                return '<span id="' + baseId + '-short">' + safe.substring(0, 300) + '...</span>' +
+                    '<span id="' + baseId + '-full" style="display:none;">' + safe + '</span>' +
+                    ' <a href="javascript:void(0)" onclick="toggleFindingMsg(\'' + baseId + '\', this)" style="color:#3b82f6;font-size:0.7rem;cursor:pointer;">Show more</a>';
+            }
+            var html = '';
+            for (var i = 0; i < sections.length; i++) {
+                var sec = sections[i];
+                var secId = baseId + '-s' + i;
+                var escHeading = String(sec.heading).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+                var escBody = String(sec.body).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+                var truncated = escBody.length > 200;
+                html += '<div class="msg-section"><strong class="msg-section-heading">' + escHeading + '</strong>';
+                if (truncated) {
+                    html += '<div class="msg-section-body" id="' + secId + '-short">' + escBody.substring(0, 200) + '...</div>' +
+                        '<div class="msg-section-body" id="' + secId + '-full" style="display:none;">' + escBody + '</div>' +
+                        ' <a href="javascript:void(0)" onclick="toggleFindingMsg(\'' + secId + '\', this)" style="color:#3b82f6;font-size:0.7rem;cursor:pointer;">Show more</a>';
+                } else {
+                    html += '<div class="msg-section-body">' + escBody + '</div>';
+                }
+                html += '</div>';
+            }
+            return html;
+        }
+
+        function filterBySource(btn, source) {
+            document.querySelectorAll('.source-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            document.querySelectorAll('.finding-item').forEach(function(item) {
+                var primarySource = (item.getAttribute('data-source') || '').split(',')[0] || '';
+                if (source === 'all') {
+                    item.style.display = '';
+                } else {
+                    item.style.display = primarySource === source ? '' : 'none';
+                }
+            });
+            document.querySelectorAll('.finding-file-group, .finding-tool-group, .finding-package-group').forEach(function(group) {
+                var allItems = group.querySelectorAll('.finding-item');
+                var hasVisible = false;
+                allItems.forEach(function(item) {
+                    if (item.style.display !== 'none') hasVisible = true;
+                });
+                group.style.display = hasVisible ? '' : 'none';
+            });
+        }
+
+        function renderFindingItem(f) {
+            var severityClass = (f.severity || '').toLowerCase();
+            var cwe = (f.cwe || []).join(', ');
+            var lineNum = f.line;
+            var typeEsc = esc(f.type || 'unknown');
+            var sevEsc = esc(f.severity || 'INFO');
+            var titleEsc = esc(f.title || 'Untitled');
+            var msgEsc = esc(f.message);
+            var fileEsc2 = esc(f.file);
+
+            var html = '<div class="finding-item" data-source="' + esc((f.sources || []).join(',')) + '">' +
+                '<div class="finding-header">' +
+                    '<span class="finding-file">' + (lineNum > 0 ? fileEsc2 + ':' + lineNum : fileEsc2) + '</span>' +
+                    '<span class="finding-type">' + typeEsc + '</span>' +
+                    '<span class="severity-badge ' + severityClass + '">' + sevEsc + '</span>' +
+                '</div>' +
+                '<div class="finding-title">' + titleEsc + '</div>';
+            if (msgEsc) {
+                var msgId = 'msg-' + (f.id || Math.random().toString(36).substr(2, 9));
+                html += '<div class="finding-message">' + formatScannerMsg(f.message, msgId) + '</div>';
+            }
+            if (f.details && f.details.trivy) {
+                html += '<div class="finding-version"><span class="version-installed">' + esc(f.details.trivy.installed) + '</span> \u2192 <span class="version-fixed">' + esc(f.details.trivy.fixed) + '</span></div>';
+            }
+            if (cwe) {
+                html += '<div class="finding-cwe">CWE: ' + esc(cwe) + '</div>';
+            }
+            html += '<div class="source-badges">';
+            var sources = f.sources || [];
+            for (var s = 0; s < sources.length; s++) {
+                html += '<span class="source-badge">' + esc(sources[s]) + '</span>';
+            }
+            html += '</div></div>';
+            return html;
+        }
+
+        function renderFindings(scanId, data, container) {
+            var findings = [];
+            if (data.files && data.files.merged) {
+                var merged = data.files.merged;
+                if (Array.isArray(merged.findings)) {
+                    findings = merged.findings;
+                } else if (merged.findings && typeof merged.findings === 'object') {
+                    findings = Object.values(merged.findings);
+                }
+            } else if (data.findings) {
+                findings = Array.isArray(data.findings) ? data.findings : Object.values(data.findings);
+            }
+            if (!Array.isArray(findings)) findings = [];
+
+            if (findings.length === 0) {
+                container.innerHTML = '<h5>All Findings</h5><p style="color:#94a3b8;font-style:italic;">No findings found</p>';
+                return;
+            }
+
+            var severityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3, 'WARNING': 4, 'INFO': 5 };
+            findings.sort(function(a, b) {
+                var oa = severityOrder[a.severity?.toUpperCase()] ?? 99;
+                var ob = severityOrder[b.severity?.toUpperCase()] ?? 99;
+                return oa - ob;
+            });
+
+            var fileGroups = {};
+            findings.forEach(function(f) {
+                var file = f.file || 'unknown';
+                if (!fileGroups[file]) fileGroups[file] = [];
+                fileGroups[file].push(f);
+            });
+
+            var html = '<h5>All Findings (' + findings.length + ')</h5>';
+            
+            // Source filter buttons
+            var allSources = {};
+            findings.forEach(function(f) { (f.sources || []).forEach(function(s) { allSources[s] = true; }); });
+            var sourcesArr = Object.keys(allSources).sort();
+            if (sourcesArr.length >= 2) {
+                html += '<div class="source-filter-bar" style="margin:0.5rem 0 1rem 0;display:flex;gap:0.4rem;flex-wrap:wrap;">';
+                html += '<button class="source-filter-btn active" data-source="all" onclick="filterBySource(this,\'all\')">All</button>';
+                sourcesArr.forEach(function(s) {
+                    html += '<button class="source-filter-btn" data-source="' + esc(s) + '" onclick="filterBySource(this,\'' + esc(s) + '\')">' + esc(s) + '</button>';
+                });
+                html += '</div>';
+            }
+            
+            var fileKeys = Object.keys(fileGroups);
+
+            fileKeys.forEach(function(file) {
+                var fileFindings = fileGroups[file];
+                var groupId = 'fg-' + scanId + '-' + file.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+                var sevs = {};
+                fileFindings.forEach(function(f) {
+                    var s = f.severity ? f.severity.toUpperCase() : '';
+                    if (s) sevs[s] = true;
+                });
+                var sevKeys = Object.keys(sevs).sort(function(a, b) {
+                    return (severityOrder[a] ?? 99) - (severityOrder[b] ?? 99);
+                });
+                var severityBadges = '';
+                sevKeys.forEach(function(s) {
+                    severityBadges += '<span class="severity-badge ' + s.toLowerCase() + '">' + esc(s) + '</span>';
+                });
+
+                var toolGroups = {};
+                fileFindings.forEach(function(f) {
+                    var tool = (f.sources && f.sources.length > 0) ? f.sources[0] : 'unknown';
+                    if (!toolGroups[tool]) toolGroups[tool] = [];
+                    toolGroups[tool].push(f);
+                });
+
+                html += '<div class="finding-file-group">' +
+                    '<div class="finding-file-header" onclick="toggleGroup(\'' + groupId + '\', this)">' +
+                        '<span class="file-group-toggle">&#x25BC;</span>' +
+                        '<span class="file-group-name">' + esc(file) + '</span>' +
+                        '<span class="file-group-count">' + fileFindings.length + ' finding' + (fileFindings.length > 1 ? 's' : '') + '</span>' +
+                        '<span class="file-group-severities">' + severityBadges + '</span>' +
+                    '</div>' +
+                    '<div class="file-group-items" id="' + groupId + '">';
+
+                Object.keys(toolGroups).forEach(function(tool) {
+                    var toolFindings = toolGroups[tool];
+                    var toolGroupId = 'tg-' + scanId + '-' + file.replace(/[^a-zA-Z0-9_-]/g, '-') + '-' + tool;
+                    var toolWorst = getWorstSeverity(toolFindings);
+
+                    html += '<div class="finding-tool-group">' +
+                        '<div class="finding-tool-header" onclick="toggleGroup(\'' + toolGroupId + '\', this)">' +
+                            '<span class="tool-group-toggle">&#x25B6;</span>' +
+                            '<span class="tool-group-name">' + esc(tool) + '</span>' +
+                            '<span class="file-group-count">' + toolFindings.length + ' finding' + (toolFindings.length > 1 ? 's' : '') + '</span>' +
+                        '</div>' +
+                        '<div class="tool-group-items" id="' + toolGroupId + '" style="display:none;">';
+
+                    var hasPackage = false;
+                    for (var i = 0; i < toolFindings.length; i++) {
+                        if (toolFindings[i].details && toolFindings[i].details.trivy && toolFindings[i].details.trivy.package) {
+                            hasPackage = true;
+                            break;
+                        }
+                    }
+
+                    if (hasPackage) {
+                        var packageGroups = {};
+                        toolFindings.forEach(function(f) {
+                            var pkg = (f.details && f.details.trivy && f.details.trivy.package) || '';
+                            var key = pkg || '__no_pkg__';
+                            if (!packageGroups[key]) packageGroups[key] = [];
+                            packageGroups[key].push(f);
+                        });
+                        Object.keys(packageGroups).forEach(function(key) {
+                            var pkgFindings = packageGroups[key];
+                            var pkgName = key === '__no_pkg__' ? 'Miscellaneous' : (pkgFindings[0].details && pkgFindings[0].details.trivy ? pkgFindings[0].details.trivy.package : 'Unknown');
+                            var pkgGroupId = 'pg-' + scanId + '-' + file.replace(/[^a-zA-Z0-9_-]/g, '-') + '-' + tool + '-' + key.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+                            html += '<div class="finding-package-group">' +
+                                '<div class="finding-package-header" onclick="toggleGroup(\'' + pkgGroupId + '\', this)">' +
+                                    '<span class="package-group-toggle">&#x25B6;</span>' +
+                                    '<span class="package-group-name">' + esc(pkgName) + '</span>' +
+                                    '<span class="file-group-count">' + pkgFindings.length + ' finding' + (pkgFindings.length > 1 ? 's' : '') + '</span>' +
+                                '</div>' +
+                                '<div class="package-group-items" id="' + pkgGroupId + '" style="display:none;">';
+
+                            pkgFindings.forEach(function(f) {
+                                html += renderFindingItem(f);
+                            });
+
+                            html += '</div></div>';
+                        });
+                    } else {
+                        toolFindings.forEach(function(f) {
+                            html += renderFindingItem(f);
+                        });
+                    }
+
+                    html += '</div></div>';
+                });
+
+                html += '</div></div>';
+            });
+
+            container.innerHTML = html;
+        }
+
+        function toggleGroup(groupId, header) {
+            var group = document.getElementById(groupId);
+            if (!group) return;
+            var toggle = header.querySelector('[class$="-toggle"]') || header.querySelector('span:first-child');
+            if (group.style.display === 'none') {
+                group.style.display = 'block';
+                if (toggle) toggle.innerHTML = '&#x25BC;';
+            } else {
+                group.style.display = 'none';
+                if (toggle) toggle.innerHTML = '&#x25B6;';
+            }
+        }
+
+        function loadScanDetail() {
+            var container = document.getElementById('scan-content');
+            if (!container) return;
+
+            fetch('/api/history/' + SCAN_ID)
+                .then(function(r) {
+                    if (r.status === 202) {
+                        container.innerHTML = '<div class="empty">Scan still processing...</div>';
+                        throw new Error('still processing');
+                    }
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(data) {
+                    var merged = data.files && data.files.merged;
+                    if (!merged) {
+                        container.innerHTML = '<div class="empty">No scan data found.</div>';
+                        return;
+                    }
+
+                    var findings = [];
+                    if (Array.isArray(merged.findings)) {
+                        findings = merged.findings;
+                    } else if (merged.findings && typeof merged.findings === 'object') {
+                        findings = Object.values(merged.findings);
+                    }
+
+                    var bySev = {};
+                    findings.forEach(function(f) {
+                        var s = (f.severity || 'LOW').toUpperCase();
+                        bySev[s] = (bySev[s] || 0) + 1;
+                    });
+                    var severityCards = '';
+                    var sevOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+                    sevOrder.forEach(function(s) {
+                        severityCards += '<div class="detail-stat"><span class="stat-label">' + s + ':</span><span class="stat-value ' + s.toLowerCase() + '">' + (bySev[s] || 0) + '</span></div>';
+                    });
+
+                    var repoName = merged.repo_name || '';
+                    var repoOwner = merged.repo_owner || '';
+                    var repoBranch = merged.repo_branch || 'main';
+                    var timestamp = merged.timestamp || '';
+                    var repoFull = (repoOwner && repoName) ? repoOwner + '/' + repoName : SCAN_ID;
+
+                    var html =
+                        '<div class="details-grid">' +
+                            '<div class="detail-card">' +
+                                '<h5>Repository</h5>' +
+                                '<div class="detail-stat"><span class="stat-label">Name:</span><span class="stat-value">' + esc(repoFull) + '</span></div>' +
+                                '<div class="detail-stat"><span class="stat-label">Branch:</span><span class="stat-value">' + esc(repoBranch) + '</span></div>' +
+                                '<div class="detail-stat"><span class="stat-label">Time:</span><span class="stat-value">' + esc(timestamp) + '</span></div>' +
+                            '</div>' +
+                            '<div class="detail-card">' +
+                                '<h5>Severity</h5>' + severityCards +
+                            '</div>' +
+                            '<div class="detail-card">' +
+                                '<h5>Total</h5>' +
+                                '<div class="detail-stat highlight"><span class="stat-value" style="font-size:1.5rem;">' + findings.length + '</span></div>' +
+                                '<div class="detail-stat"><span class="stat-label">findings</span></div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="findings-list" id="findings-list">' +
+                            '<h5>All Findings (' + findings.length + ')</h5>';
+
+                    if (findings.length === 0) {
+                        html += '<p style="color:#94a3b8;font-style:italic;">No findings</p>';
+                    }
+                    html += '</div>';
+
+                    container.innerHTML = html;
+
+                    if (findings.length > 0) {
+                        renderFindings(SCAN_ID, data, document.getElementById('findings-list'));
+                    }
+                })
+                .catch(function(err) {
+                    if (err.message === 'still processing') return;
+                    container.innerHTML = '<div class="empty">Error: ' + esc(err.message) + '</div>';
+                });
+        }
+
+        loadScanDetail();
+    </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+
+# Flask session
+flask_session/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Backup files
+*.bak
+
+# Virtual environment
+venv/
+
+# Secrets
+.env
+*.pem
+*.key
+
+# Temp files
+tmp/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+
+
+.repos_cache.json
+flask_session_data/
+AGENTS.md

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Activity - {{ target_user.username }} - VIRTUAL_PLUMBER</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260509_v1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-base.css') }}?v=20260508">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-components.css') }}?v=20260508">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles-responsive.css') }}?v=20260508">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b1120;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+        }
+        .user-activity-page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .back-btn {
+            background: #1e293b;
+            color: #94a3b8;
+            border: 1px solid #334155;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .back-btn:hover {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .page-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #f1f5f9;
+        }
+
+        .activity-filters {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .activity-filters select {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            padding: 0.45rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .activity-filters select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .activity-entries {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .activity-entry {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            transition: border-color 0.2s;
+        }
+        .activity-entry:hover {
+            border-color: #334155;
+        }
+        .activity-entry.activity-failure {
+            border-left: 3px solid #ef4444;
+        }
+        .activity-entry.activity-success {
+            border-left: 3px solid #22c55e;
+        }
+        .activity-entry-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .activity-time {
+            font-size: 0.8rem;
+            color: #64748b;
+            min-width: 150px;
+        }
+        .activity-actor {
+            font-weight: 500;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+        }
+        .activity-role-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .activity-role-badge.admin { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+        .activity-role-badge.operator { background: #3b82f620; color: #3b82f6; border: 1px solid #3b82f640; }
+        .activity-role-badge.viewer { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
+        .activity-role-badge.system { background: #64748b20; color: #64748b; border: 1px solid #64748b40; }
+        .activity-action-label {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .activity-status {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .activity-status.success {
+            background: #22c55e20;
+            color: #22c55e;
+        }
+        .activity-status.failure {
+            background: #ef444420;
+            color: #ef4444;
+        }
+        .activity-details {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+        .activity-details strong {
+            color: #e2e8f0;
+        }
+        .activity-footer {
+            margin-top: 1.5rem;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+        .activity-loading, .activity-empty {
+            text-align: center;
+            padding: 3rem;
+            color: #64748b;
+        }
+        .activity-new {
+            animation: highlightFade 1s ease-out;
+        }
+        @keyframes highlightFade {
+            0% { background: #3b82f615; border-color: #3b82f6; }
+            100% { background: transparent; border-color: #1e293b; }
+        }
+    </style>
+</head>
+<body>
+    <div class="user-activity-page">
+        <div class="page-header">
+            <button class="back-btn" onclick="goBack()">&larr; Back to Activity</button>
+            <h1>{{ target_user.username }}</h1>
+            <div class="activity-filters">
+            <select id="activity-action-filter" onchange="loadUserActivity()">
+                <option value="">All Actions</option>
+                <option value="LOGIN_SUCCESS">Login</option>
+                <option value="LOGIN_FAILED">Login Failed</option>
+                <option value="USER_CREATED">User Created</option>
+                <option value="USER_UPDATED">User Updated</option>
+                <option value="USER_DELETED">User Deleted</option>
+                <option value="SCAN_TRIGGERED">Scan Triggered</option>
+                <option value="SCAN_ALL_TRIGGERED">Scan All Triggered</option>
+                <option value="PR_SCAN_SETTINGS_UPDATED">PR Settings Changed</option>
+                <option value="GITHUB_CREDENTIALS_UPDATED">GitHub Credentials</option>
+                <option value="REPORT_EXPORTED">Report Exported</option>
+                <option value="SCAN_HISTORY_DELETED">Scan History Deleted</option>
+                <option value="NGROK_SETTINGS_UPDATED">Ngrok Settings</option>
+                <option value="PR_WEBHOOK_RECEIVED">PR Webhook</option>
+                <option value="PASSWORD_CHANGED">Password Changed</option>
+                <option value="LOGOUT">Logout</option>
+                <option value="ADMIN_SETUP">Admin Setup</option>
+            </select>
+            <select id="activity-days-filter" onchange="loadUserActivity()">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="0">All time</option>
+            </select>
+            <span style="color: #64748b; font-size: 0.85rem; margin-left: auto;" id="live-indicator">● Live</span>
+        </div>
+        </div>
+
+        <div class="activity-list" id="activity-list">
+            <div class="activity-loading">Loading activity log...</div>
+        </div>
+    </div>
+
+    <script>
+        const TARGET_USER_ID = {{ target_user.id }};
+        let activityLatestId = null;
+        let pollTimer = null;
+
+        function formatDate(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMin = Math.floor(diffMs / 60000);
+            if (diffMin < 1) return 'just now';
+            if (diffMin < 60) return diffMin + 'm ago';
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return diffHr + 'h ago';
+            const opts = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return d.toLocaleDateString('en-US', opts);
+        }
+
+        function esc(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = String(str);
+            return div.innerHTML;
+        }
+
+        function formatActionLabel(action) {
+            const labels = {
+                'LOGIN_SUCCESS': 'Login',
+                'LOGIN_FAILED': 'Login Failed',
+                'USER_CREATED': 'Created User',
+                'USER_UPDATED': 'Updated User',
+                'USER_DELETED': 'Deleted User',
+                'SCAN_TRIGGERED': 'Triggered Scan',
+                'SCAN_ALL_TRIGGERED': 'Triggered Scan All',
+                'PR_SCAN_SETTINGS_UPDATED': 'Changed PR Settings',
+                'GITHUB_CREDENTIALS_UPDATED': 'Updated GitHub Credentials',
+                'REPORT_EXPORTED': 'Exported Report',
+                'SCAN_HISTORY_DELETED': 'Deleted Scan History',
+                'NGROK_SETTINGS_UPDATED': 'Updated Ngrok Settings',
+                'PR_WEBHOOK_RECEIVED': 'PR Webhook Received',
+                'PASSWORD_CHANGED': 'Password Changed',
+                'LOGOUT': 'Logged Out',
+                'ADMIN_SETUP': 'Admin Setup'
+            };
+            return labels[action] || action;
+        }
+
+        function formatResourceType(rt) {
+            const labels = {
+                'authentication': 'Auth',
+                'repository': 'Repo',
+                'report': 'Report',
+                'scan': 'Scan',
+                'settings': 'Settings',
+                'pull_request': 'PR',
+                'user': 'User'
+            };
+            return labels[rt] || rt;
+        }
+
+        function formatActivityDetails(log) {
+            let parts = [];
+            parts.push('<strong>' + esc(formatActionLabel(log.action)) + '</strong>');
+            if (log.resource_type && log.resource_id) {
+                parts.push(esc(log.resource_id));
+            }
+            if (log.new_value) {
+                if (log.new_value.username) parts.push('User: ' + esc(log.new_value.username));
+                if (log.new_value.role) parts.push('Role: ' + esc(log.new_value.role));
+                if (log.new_value.repo_name) parts.push('Repo: ' + esc(log.new_value.repo_name));
+                if (log.new_value.scan_types) parts.push('Types: ' + esc(JSON.stringify(log.new_value.scan_types)));
+                if (log.new_value.total_repos !== undefined) parts.push('Scans: ' + (log.new_value.triggered || 0) + '/' + log.new_value.total_repos);
+                if (log.new_value.count !== undefined) parts.push('Deleted: ' + log.new_value.count + ' scan(s)');
+                if (log.new_value.total_scans !== undefined) parts.push('Scans: ' + log.new_value.total_scans);
+                if (log.new_value.total_findings !== undefined) parts.push('Findings: ' + log.new_value.total_findings);
+            }
+            if (log.old_value && log.new_value) {
+                const changed = [];
+                if (log.old_value.role !== log.new_value.role) changed.push('role: ' + log.old_value.role + ' \u2192 ' + log.new_value.role);
+                if (log.old_value.email !== log.new_value.email) changed.push('email: ' + log.old_value.email + ' \u2192 ' + log.new_value.email);
+                if (log.old_value.full_name !== log.new_value.full_name) changed.push('name: ' + (log.old_value.full_name||'-') + ' \u2192 ' + (log.new_value.full_name||'-'));
+                if (log.old_value.department !== log.new_value.department) changed.push('dept: ' + (log.old_value.department||'-') + ' \u2192 ' + (log.new_value.department||'-'));
+                if (changed.length) parts.push('Changed: ' + changed.join(', '));
+            }
+            if (log.error_message) {
+                parts.push('Error: ' + esc(log.error_message));
+            }
+            return parts.join(' | ');
+        }
+
+        function renderActivityEntry(log) {
+            const time = formatDate(log.created_at);
+            const username = esc(log.username || 'System');
+            const userRole = log.user_role || 'system';
+            const roleBadge = '<span class="activity-role-badge ' + userRole + '">' + userRole + '</span>';
+            const resourceLabel = formatResourceType(log.resource_type);
+            const actionLabel = formatActionLabel(log.action);
+            const statusClass = log.status === 'failure' ? 'activity-failure' : 'activity-success';
+            const details = formatActivityDetails(log);
+            const actorPart = username + ' ' + roleBadge;
+
+            return '<div class="activity-entry ' + statusClass + '" data-id="' + log.id + '">' +
+                '<div class="activity-entry-header">' +
+                '<span class="activity-time">' + time + '</span>' +
+                '<span class="activity-actor">' + actorPart + '</span>' +
+                '<span class="activity-action-label">' + esc(resourceLabel) + '</span>' +
+                '<span class="activity-status ' + log.status + '">' + esc(log.status) + '</span>' +
+                '</div>' +
+                (details ? '<div class="activity-details">' + details + '</div>' : '') +
+                '</div>';
+        }
+
+        function loadUserActivity() {
+            const container = document.getElementById('activity-list');
+            if (!container) return;
+
+            const days = document.getElementById('activity-days-filter')?.value || 30;
+            const action = document.getElementById('activity-action-filter')?.value || '';
+
+            let url = '/api/activity?user_id=' + TARGET_USER_ID + '&days=' + days + '&limit=500';
+            if (action) url += '&action=' + action;
+
+            container.innerHTML = '<div class="activity-loading">Loading activity log...</div>';
+            activityLatestId = null;
+
+            fetch(url, { credentials: 'include' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.logs || data.logs.length === 0) {
+                        container.innerHTML = '<div class="activity-empty">No activity logged in this period.</div>';
+                        
+                        return;
+                    }
+
+                    var html = '<div class="activity-entries">';
+                    var successCount = 0;
+                    var failCount = 0;
+                    data.logs.forEach(function(log) {
+                        html += renderActivityEntry(log);
+                        if (log.status === 'success') successCount++;
+                        else if (log.status === 'failure') failCount++;
+                    });
+                    html += '</div>';
+                    html += '<div class="activity-footer">Total: ' + data.total + ' entries</div>';
+                    container.innerHTML = html;
+
+                    if (data.logs.length > 0) {
+                        activityLatestId = data.logs[0].id;
+                    }
+
+                    
+                })
+                .catch(function(err) {
+                    container.innerHTML = '<div class="activity-empty">Failed to load activity: ' + esc(err.message) + '</div>';
+                });
+        }
+
+        function pollUserActivity() {
+            const container = document.getElementById('activity-list');
+            const entriesEl = container?.querySelector('.activity-entries');
+            if (!container || !entriesEl) return;
+
+            const days = document.getElementById('activity-days-filter')?.value || 30;
+            const action = document.getElementById('activity-action-filter')?.value || '';
+
+            let url = '/api/activity?user_id=' + TARGET_USER_ID + '&days=' + days + '&limit=10';
+            if (action) url += '&action=' + action;
+            if (activityLatestId) url += '&since_id=' + activityLatestId;
+
+            fetch(url, { credentials: 'include' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.logs || data.logs.length === 0) return;
+
+                    var seen = new Set();
+                    var existing = container.querySelectorAll('.activity-entry');
+                    existing.forEach(function(el) {
+                        var id = el.getAttribute('data-id');
+                        if (id) seen.add(parseInt(id));
+                    });
+
+                    var prependHtml = '';
+                    data.logs.forEach(function(log) {
+                        if (!seen.has(log.id)) {
+                            prependHtml += renderActivityEntry(log);
+                        }
+                        if (!activityLatestId || log.id > activityLatestId) {
+                            activityLatestId = log.id;
+                        }
+                    });
+
+                    if (prependHtml) {
+                        entriesEl.insertAdjacentHTML('afterbegin', prependHtml);
+                        var firstNew = entriesEl.firstElementChild;
+                        if (firstNew) {
+                            firstNew.classList.add('activity-new');
+                            setTimeout(function() { firstNew.classList.remove('activity-new'); }, 1000);
+                        }
+                    }
+
+                    var footer = container.querySelector('.activity-footer');
+                    if (footer) {
+                        var count = container.querySelectorAll('.activity-entry').length;
+                        footer.textContent = 'Total: ' + count + ' entries';
+                    }
+                })
+                .catch(function() {});
+        }
+
+        function startPoll() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(pollUserActivity, 5000);
+        }
+
+        function goBack() {
+            localStorage.setItem('activeTab', 'activity');
+            window.location.href = '/dashboard';
+        }
+
+        loadUserActivity();
+        startPoll();
+    </script>
+</body>
+</html>
