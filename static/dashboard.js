@@ -2074,20 +2074,22 @@ document.getElementById('user-form').addEventListener('submit', function(e) {
         body: JSON.stringify(userData)
     })
     .then(response => {
-        
         if (response.status === 200) {
-            response.json().then(result => {
-        if (result.status === 200 && result.body.status === 'success') {
-            alert(result.body.message);
-            closeUserModal();
-            loadUsers();
-        } else {
-            alert(result.body.message || 'Error: ' + result.body.error);
+            response.json()
+                .then(result => {
+                    if (result.status === 200 && result.body.status === 'success') {
+                        alert(result.body.message);
+                        closeUserModal();
+                        loadUsers();
+                    } else {
+                        alert(result.body.message || 'Error: ' + result.body.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to save user: ' + error.message);
+                });
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to save user: ' + error.message);
     });
 });
 
