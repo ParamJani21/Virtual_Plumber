@@ -166,8 +166,16 @@ def fp_pending_count():
             return jsonify({'count': 0}), 200
 
         from models.false_positive import FalsePositiveRecord
+        from models.database import User
         if user.role == 'operator':
-            count = FalsePositiveRecord.query.filter_by(status='PENDING_OPERATOR').count()
+            my_viewer_ids = [u.id for u in User.query.filter_by(created_by_id=user.id).all()]
+            if my_viewer_ids:
+                count = FalsePositiveRecord.query.filter(
+                    FalsePositiveRecord.status == 'PENDING_OPERATOR',
+                    FalsePositiveRecord.created_by_viewer_id.in_(my_viewer_ids)
+                ).count()
+            else:
+                count = 0
         else:
             count = FalsePositiveRecord.query.filter_by(status='PENDING_ADMIN').count()
         return jsonify({'count': count})

@@ -1487,7 +1487,15 @@ def api_get_users():
     """Get all users (admin and operator)"""
     from models.database import User
     
-    users = User.query.order_by(User.created_at.desc()).all()
+    current_user = User.query.get(session.get('user_id'))
+    
+    if current_user and current_user.role == 'operator':
+        # Operator sees: admins + their own created viewers
+        users = User.query.filter(
+            (User.role == 'admin') | (User.created_by_id == current_user.id)
+        ).order_by(User.created_at.desc()).all()
+    else:
+        users = User.query.order_by(User.created_at.desc()).all()
     
     return jsonify({
         'status': 'success',
@@ -1616,8 +1624,8 @@ def api_update_user(user_id):
     # Permission check
     if current_user.role == 'admin':
         pass  # Admin can edit any user
-    elif current_user.role == 'operator' and target_user.role == 'viewer':
-        pass  # Operator can edit viewers
+    elif current_user.role == 'operator' and target_user.role == 'viewer' and target_user.created_by_id == current_user.id:
+        pass  # Operator can edit only their own viewers
     else:
         return jsonify({'error': 'Admin access required', 'code': 'FORBIDDEN'}), 403
     
@@ -1685,8 +1693,8 @@ def api_delete_user(user_id):
     # Permission check
     if current_user.role == 'admin':
         pass  # Admin can delete any user
-    elif current_user.role == 'operator' and user.role == 'viewer':
-        pass  # Operator can delete viewers
+    elif current_user.role == 'operator' and user.role == 'viewer' and user.created_by_id == current_user.id:
+        pass  # Operator can delete only their own viewers
     else:
         return jsonify({'error': 'Admin access required', 'code': 'FORBIDDEN'}), 403
     
