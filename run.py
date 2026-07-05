@@ -392,21 +392,34 @@ def print_startup_info():
     print("="*70 + "\n")
 
 
+UPDATE_PUBLIC_URL = "https://github.com/ParamJani21/Virtual_Plumber.git"
+
 def check_for_updates():
-    """Check if a newer version is available on main and offer to update"""
+    """Check if a newer version is available on main and offer to update.
+    
+    Uses the public clone URL so no authentication is required.
+    Falls back silently if the repo is not public or network is unavailable.
+    """
     try:
         repo_dir = os.path.dirname(os.path.abspath(__file__))
-        origin_url = subprocess.run(
-            ['git', '-C', repo_dir, 'remote', 'get-url', 'origin'],
-            capture_output=True, text=True, timeout=10
-        ).stdout.strip()
 
-        if not origin_url:
+        print("[*] Checking for updates...")
+
+        # Suppress any credential prompts -- public repo fetch needs no auth
+        env = os.environ.copy()
+        env['GIT_ASKPASS'] = '/bin/true'
+        env['GIT_TERMINAL_PROMPT'] = '0'
+
+        result = subprocess.run(
+            ['git', '-C', repo_dir, 'fetch', '--force', UPDATE_PUBLIC_URL, 'main'],
+            capture_output=True, timeout=30, env=env
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr
+            if 'Authentication failed' in stderr or 'could not read Username' in stderr:
+                print("[!] Update check skipped (private repo or no network)")
             return False
-
-        print("[*] Checking for updates (origin/main)...")
-        subprocess.run(['git', '-C', repo_dir, 'fetch', 'origin', 'main'],
-                       capture_output=True, timeout=30)
 
         local_sha = subprocess.run(
             ['git', '-C', repo_dir, 'rev-parse', 'HEAD'],
@@ -414,7 +427,7 @@ def check_for_updates():
         ).stdout.strip()
 
         remote_sha = subprocess.run(
-            ['git', '-C', repo_dir, 'rev-parse', 'origin/main'],
+            ['git', '-C', repo_dir, 'rev-parse', 'FETCH_HEAD'],
             capture_output=True, text=True, timeout=10
         ).stdout.strip()
 
@@ -426,12 +439,12 @@ def check_for_updates():
             return False
 
         behind = subprocess.run(
-            ['git', '-C', repo_dir, 'rev-list', '--count', f'{local_sha}..origin/main'],
+            ['git', '-C', repo_dir, 'rev-list', '--count', f'{local_sha}..FETCH_HEAD'],
             capture_output=True, text=True, timeout=10
         ).stdout.strip()
 
         ahead = subprocess.run(
-            ['git', '-C', repo_dir, 'rev-list', '--count', f'origin/main..{local_sha}'],
+            ['git', '-C', repo_dir, 'rev-list', '--count', f'FETCH_HEAD..{local_sha}'],
             capture_output=True, text=True, timeout=10
         ).stdout.strip()
 
@@ -440,7 +453,7 @@ def check_for_updates():
 
         if behind_count > 0:
             print(f"\n{'='*60}")
-            print(f"  Update Available! {behind_count} new commit(s) behind origin/main")
+            print(f"  Update Available! {behind_count} new commit(s) behind main")
             if ahead_count > 0:
                 print(f"  (You have {ahead_count} local commit(s) ahead)")
             print(f"{'='*60}")
@@ -450,10 +463,17 @@ def check_for_updates():
                 print("[*] Stashing local changes...")
                 subprocess.run(['git', '-C', repo_dir, 'stash'], capture_output=True, timeout=10)
                 print("[*] Pulling latest code...")
-                subprocess.run(['git', '-C', repo_dir, 'fetch', 'origin', 'main'],
-                               capture_output=True, timeout=30)
-                result = subprocess.run(['git', '-C', repo_dir, 'reset', '--hard', 'origin/main'],
-                                        capture_output=True, text=True, timeout=30)
+                result = subprocess.run(
+                    ['git', '-C', repo_dir, 'fetch', '--force', UPDATE_PUBLIC_URL, 'main'],
+                    capture_output=True, timeout=30, env=env
+                )
+                if result.returncode != 0:
+                    print("[!] Update fetch failed")
+                    return False
+                result = subprocess.run(
+                    ['git', '-C', repo_dir, 'reset', '--hard', 'FETCH_HEAD'],
+                    capture_output=True, text=True, timeout=30
+                )
                 if result.returncode == 0:
                     print("[✓] Updated successfully! Restarting...\n")
                     return True
@@ -463,7 +483,7 @@ def check_for_updates():
             else:
                 print("[*] Skipping update\n")
         elif ahead_count > 0:
-            print(f"[*] You are {ahead_count} commit(s) ahead of origin/main (local changes)\n")
+            print(f"[*] You are {ahead_count} commit(s) ahead of remote main (local changes)\n")
     except FileNotFoundError:
         pass
     except subprocess.TimeoutExpired:
