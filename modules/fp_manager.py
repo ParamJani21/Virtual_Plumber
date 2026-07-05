@@ -125,8 +125,11 @@ def submit_fp_request(finding, submitter_id, viewer_reason, scan_metadata=None, 
             record_kwargs['escalation_history'] = json.dumps(escalation)
             
         else:
-            # Viewer: PENDING_OPERATOR, assign an operator for review
-            operator = User.query.filter_by(role='operator').first()
+            # Viewer: PENDING_OPERATOR, assign to their parent operator
+            viewer = submitter
+            operator = viewer.creator if viewer.creator and viewer.creator.role == 'operator' else None
+            if not operator:
+                operator = User.query.filter_by(role='operator').first()
             if not operator:
                 operator = User.query.filter_by(role='admin').first()
             escalation = [{
@@ -474,9 +477,15 @@ def get_fp_requests(user_id=None, role=None, status=None, page=1, per_page=20):
                 child_ids = [u.id for u in User.query.filter_by(created_by_id=user_id).all()]
                 team_ids = [user_id] + child_ids
                 query = query.filter(FalsePositiveRecord.created_by_viewer_id.in_(team_ids))
-        elif role in ('viewer', 'operator'):
+        elif role == 'viewer':
             if user_id:
                 query = query.filter_by(created_by_viewer_id=user_id)
+        elif role == 'operator':
+            # Default: show FPs from operator's own viewers (team scope)
+            if user_id:
+                child_ids = [u.id for u in User.query.filter_by(created_by_id=user_id).all()]
+                team_ids = [user_id] + child_ids
+                query = query.filter(FalsePositiveRecord.created_by_viewer_id.in_(team_ids))
         
         if status:
             if status == 'active':
@@ -617,9 +626,14 @@ def get_fp_review_queue(user_id, role):
     """
     try:
         if role == 'operator':
-            records = FalsePositiveRecord.query.filter_by(
-                status='PENDING_OPERATOR'
-            ).order_by(FalsePositiveRecord.created_at.asc()).all()
+            my_viewer_ids = [u.id for u in User.query.filter_by(created_by_id=user_id).all()]
+            if my_viewer_ids:
+                records = FalsePositiveRecord.query.filter(
+                    FalsePositiveRecord.status == 'PENDING_OPERATOR',
+                    FalsePositiveRecord.created_by_viewer_id.in_(my_viewer_ids)
+                ).order_by(FalsePositiveRecord.created_at.asc()).all()
+            else:
+                records = []
         elif role == 'admin':
             records = FalsePositiveRecord.query.filter_by(
                 status='PENDING_ADMIN'

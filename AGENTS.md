@@ -369,6 +369,54 @@ curl -X POST http://localhost:5000/github/webhook \
 
 ---
 
+## Operator-Viewer Parent-Child Relationship
+
+The system enforces a strict parent-child hierarchy between Operators and the Viewers they create.
+
+### User Model (`models/database.py`)
+
+The `User` model has a `created_by_id` field (FK → `users.id`) that tracks which user created this user. This creates the parent-child relationship:
+
+```python
+creator = db.relationship('User', remote_side='User.id', backref=db.backref('created_users', lazy='dynamic'))
+# user.creator → the user who created this user
+# user.created_users → users created by this user (e.g., operator.created_users = their viewers)
+```
+
+### Role Hierarchy & Scope
+
+| Role | Can create | Sees in user list | Can edit/delete |
+|------|-----------|-------------------|-----------------|
+| **Admin** | admin, operator, viewer | All users | Any user |
+| **Operator** | viewer only | Admins + their own viewers | Only their own viewers |
+
+### FP (False Positive) Routing
+
+When a viewer submits a false positive request, it is routed based on who created them:
+
+1. **Viewer's FP** → Goes to **their parent operator** (the operator who created them via `created_by_id`)
+2. **If viewer has no parent operator** → Falls back to the first operator in the DB, then first admin
+3. **Operator's FP** → Goes directly to `PENDING_ADMIN` (skips operator review, as before)
+4. **Admin's FP** → Immediately `APPROVED_FP` (as before)
+
+### Operator Scoping in FP Flow
+
+- **Review Queue** (`get_fp_review_queue`): Operators see only `PENDING_OPERATOR` FPs from **their own viewers**
+- **FP List** (`get_fp_requests`): Operators see FPs from their own viewers by default
+- **Pending Count** (`/api/fp/pending-count`): Operators count only their own viewers' pending FPs
+
+### Enforcement Points
+
+- `modules/fp_manager.py:submit_fp_request()` — Assigns viewer FP to `viewer.creator` (their parent operator)
+- `modules/fp_manager.py:get_fp_review_queue()` — Filters `PENDING_OPERATOR` by operator's `created_users`
+- `modules/fp_manager.py:get_fp_requests()` — Default scope for operators shows their viewers' FPs
+- `app/fp_routes.py:fp_pending_count()` — Scopes pending count to operator's viewers
+- `app/routes.py:api_get_users()` — Operators see only admins + `created_by_id == current_user.id`
+- `app/routes.py:api_update_user()` — Operators can only edit viewers where `created_by_id == current_user.id`
+- `app/routes.py:api_delete_user()` — Operators can only delete viewers where `created_by_id == current_user.id`
+
+---
+
 ## Auto-Update Feature
 
 On startup, `run.py` automatically checks if a newer version exists on the remote `origin/main`:

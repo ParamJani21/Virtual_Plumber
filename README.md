@@ -1,195 +1,271 @@
-# VIRTUAL_PLUMBER - Security Scanning Orchestration Dashboard
+# VIRTUAL_PLUMBER — Security Scanning Orchestration Dashboard
 
-A Flask-based security scanning dashboard that automates security scans for GitHub repositories using multiple security tools.
+A Flask-based dashboard that orchestrates security scans across GitHub repositories using OpenGrep, Slither, Trivy, and TruffleHog. Features a 3-tier user system (Admin → Operator → Viewer), PR scanning automation, and a governed false-positive management workflow.
 
 ## Features
 
-- **GitHub App Integration** - Authenticate and scan repositories via GitHub App
-- **Automated PR Scanning** - Automatically scans pull requests when opened/updated
-- **PR Toggle** - Enable/disable automatic PR scanning from Settings
-- **GitHub Status Checks** - Real-time commit status on PRs
-- **PR Comments** - Posts scan results summary as PR comment
-- **Selectable Scan Types** - Choose which scans to run (SATS, SBOM, SECRET)
-- **Scan History** - View and manage past scan results
-- **Export Reports** - Generate HTML reports of scan findings
+### Security Scanning
+- **GitHub App Integration** — Authenticate and scan repos via GitHub App
+- **Selectable Scan Types** — SATS (static analysis), SBOM (CycloneDX), SECRET (secret/token detection)
+- **Automated PR Scanning** — Auto-scans PRs on open/synchronize with optional blocking
+- **GitHub Status Checks** — Real-time commit status on every PR
+- **PR Comments** — Posts scan summary as markdown table on the PR
+
+### User System (3-Tier)
+| Role | Permissions |
+|------|------------|
+| **Admin** | Full access — manage all users, configure settings, approve FP at final stage |
+| **Operator** | Manage their own viewers, review and escalate viewer-submitted FPs, trigger scans |
+| **Viewer** | Submit false positive requests, view scan results, export reports |
+
+Each Operator can create Viewers. A Viewer's FP requests are routed to their parent Operator only — other Operators cannot see them.
+
+### False Positive Management (3-Tier Approval)
+```
+Viewer submits → PENDING_OPERATOR → Operator approves → PENDING_ADMIN → Admin approves → APPROVED_FP
+                                                      ↘ Operator rejects → OPERATOR_REJECTED
+                                                                                              ↘ Admin rejects → ADMIN_REJECTED
+                                                                                              ↘ Admin reverts → REVERTED_TO_TP
+```
+- Viewers submit FP requests with a reason
+- Operators review, approve (escalates to admin), or reject
+- Administrators give final approval or reject/revert
+- Approved FPs are suppressed in scan results
+
+### Activity Logging
+- Every action (login, user CRUD, scan trigger, FP submission/approval/rejection) is logged
+- Admin can view activity logs per user with date/action/resource filters
+
+### Export Reports
+- Generate HTML reports filtered by date range, severity, and tool
 
 ## Prerequisites
 
 - Python 3.10+
 - GitHub App (create at github.com/settings/apps)
-- ngrok (for webhook access)
-- WSL (Windows Subsystem for Linux) for Windows users
+- ngrok account (for webhook tunnel)
+- WSL (Windows Subsystem for Linux) — required on Windows for Git/Security tools
 
-## Installation
+## Quick Start
 
-### 1. Clone/Download the Project
-
-```bash
-cd /VIRTUAL_PLUMBER
-```
-
-### 2. Quick Setup (Recommended)
-
-Run the automated setup script - it creates virtual environment, installs dependencies, and all security tools:
+### 1. Setup
 
 ```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-### 3. Manual Installation (Alternative)
-
-If you prefer manual installation:
-
-```bash
-# Create virtual environment
+cd VIRTUAL_PLUMBER
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.txt
 ```
 
-#### Install Security Tools (WSL/Linux)
-
+Install security tools in WSL/Linux:
 ```bash
-# OpenGrep (static analysis)
+# OpenGrep
 curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
 
-# Slither (smart contract analysis - optional)
+# Slither (optional, for smart contracts)
 pip install slither-analyzer
 
-# Trivy (SBOM generation)
+# Trivy (SBOM)
 curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin v0.70.0
 
-# TruffleHog (secret scanning)
-git clone https://github.com/trufflesecurity/trufflehog.git
-cd trufflehog && go install
+# TruffleHog (secrets)
+go install github.com/trufflesecurity/trufflehog/v3@latest
 
 # ngrok
-
-curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" | sudo tee /etc/apt/sources.list.d/ngrok.list && sudo apt update && sudo apt install ngrok
+curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+sudo apt update && sudo apt install ngrok
 ```
 
-Verify tools:
-```bash
-git --version
-opengrep --version
-slither --version
-trufflehog --version
-trivy --version
-ngrok --version
-```
+### 2. Configure GitHub App
 
-## Setup Flow
-
-### 1. Run the run.py
-
-```bash
-python3 run.py
-```
-
-* It will guide you how to do all the things, if any doubts here is the more detailed guide present.
-
-### GITHUB APPLICATION SETUP
-1. Go to: https://github.com/settings/apps/new
-2. Set name (e.g., "VIRTUAL_PLUMBER")
-3. Enter the random URL at the HomepageURL and webhookURL(TEMP, we need to change it when we get the NGROK URL or If you are planning to match it with the domain via HTTPS, then just enter the https://DOMAIN/github/webhook)
+1. Go to https://github.com/settings/apps/new
+2. Set name (e.g., `VIRTUAL_PLUMBER`)
+3. Set any Homepage URL and Webhook URL (update later with ngrok URL)
 4. Permissions:
    - Contents: Read
    - Pull requests: Read & Write
    - Commit statuses: Read & Write
    - Checks: Read & Write
-5. Subscribe to events: `Pull requests`
-6. Create Gihub app.
-7. Find private key generation...and generate private key (download .pem file)
+5. Subscribe to: Pull requests
+6. Generate and download a private key (.pem)
 
-Access at: `http://localhost:5000`
+### 3. Run
 
-### 2. Configure via Dashboard
-
-1. **Login** with admin : Securepass123@# --> Don't worry we force to change this password...!
-
-
-2. **Configure GitHub App Settings** (in Settings Tab):
-   - **GitHub App ID** - From your GitHub App settings
-   - **GitHub App Name** - The name you gave your app
-   - **GitHub Secret Key** - Paste the entire private key (.pem file contents)
-   - **Ngrok OAuth Token** - From ngrok.com dashboard
-   - **Ngrok Subdomain** - From ngrok.com dashboard --> go to the domain and create one for the static. (if it is like `https://your-subdomain.ngrok.io` then just enter the `your-subdomain` in the setting field of Ngrok subdomain.)
-   - **Webhook Secret** - Generate a random string for verification
-
-### RESTART THE PYTHON RUN.PY AGAIN if you have setup it from the dashboard TO PICK UP THE .ENV FILE CONFIGURATIONS (**MANDETORY**)
-
-3. **Configure GitHub Webhook**:
-   - Go to your GitHub App settings > Webhooks
-   - Add webhook URL (shown in terminal when app starts): `https://your-subdomain.ngrok.io/github/webhook`
-   - Set webhook secret matching your dashboard
-
-4. **Install GitHub App** on your organization/repositories
-
-**Note:** Ngrok tunnel is automatically started when `Ngrok OAuth Token` is configured. The webhook URL will be displayed in the terminal.
-
-### 4. Toggle PR Scanning
-
-In Settings tab:
-- Enable toggle = All PRs auto-scan
-- Disable toggle = PRs logged but not scanned
-
-
-**Important: Change password after first login!**
-
-## Scan Types
-
-| Type | Tool | Description |
-|------|------|-------------|
-| **SATS** | OpenGrep | Static code analysis |
-| **SBOM** | Trivy | Software Bill of Materials |
-| **SECRET** | TruffleHog | Secret/token detection |
-
-
-
-## Troubleshooting
-
-### Check logs
 ```bash
-tail -f logs/app.log
+python3 run.py
 ```
 
-### Verify tools installed
-```bash
-which opengrep trufflehog trivy git
-```
+First launch creates a default admin: `admin / Securepass123@#` (force-changed on first login).
+
+### 4. Dashboard Setup
+
+1. **Login** as admin
+2. **Settings tab** — Enter GitHub App ID, App Name, Private Key, ngrok token, webhook secret
+3. **Restart `run.py`** to pick up `.env` changes
+4. **Set webhook URL** in GitHub App settings (shown in terminal after ngrok starts)
+5. **Install** the GitHub App on your repos
+
+## User Management
+
+### Creating Users (Settings → Users tab)
+
+| Creator | Can create |
+|---------|-----------|
+| Admin | Admin, Operator, Viewer |
+| Operator | Viewer only |
+
+Each user created by an Operator is automatically linked as their child. That Operator will see only their own Viewers and all Admins in the user list.
+
+### Password Policy
+- Minimum 12 characters
+- Must contain uppercase, lowercase, digit, and special character
+- Cannot contain username
+- Password history (last 5) enforced on change
+- First login forces password change
+- 5 failed attempts = 15-minute lockout
+
+## API Endpoints
+
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/login` | GET/POST | Login page and processing |
+| `/auth/logout` | GET/POST | Logout |
+| `/auth/change-password` | GET/POST | Change password (forced on first login) |
+| `/auth/status` | GET | Current auth status |
+| `/auth/setup/initial-admin` | POST | Create initial admin (only if no admin exists) |
+
+### Dashboard & Scans
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Dashboard |
+| `/api/me` | GET | Current user info |
+| `/api/overview` | GET | Dashboard stats |
+| `/api/history` | GET | Scan history |
+| `/api/history/<scan_id>` | GET | Scan detail |
+| `/api/repos` | GET | List repos |
+| `/api/repos/scan` | POST | Trigger scan on one repo |
+| `/api/repos/scan-all` | POST | Trigger scan on all repos |
+| `/api/settings` | GET/POST | App settings |
+
+### User Management
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/users` | GET | Admin/Operator | List users (Operator sees only admins + their viewers) |
+| `/api/users` | POST | Admin/Operator | Create user (Operator can only create Viewer) |
+| `/api/users/<id>` | PUT | Admin/Operator | Update user (Operator can only edit their own viewers) |
+| `/api/users/<id>` | DELETE | Admin/Operator | Delete user (Operator can only delete their own viewers) |
+
+### False Positive Management
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/fp/requests` | GET | All | List FP requests (scoped by role) |
+| `/api/fp/requests` | POST | All | Submit FP request |
+| `/api/fp/requests/<id>` | GET | All | FP request detail |
+| `/api/fp/requests/<id>/approve` | POST | Operator/Admin | Approve FP |
+| `/api/fp/requests/<id>/reject` | POST | Operator/Admin | Reject FP |
+| `/api/fp/requests/<id>/revert` | POST | Admin | Revert approved FP to TP |
+| `/api/fp/pending-count` | GET | Operator/Admin | Pending review count (scoped to operator's viewers) |
+| `/api/fp/queue` | GET | Operator/Admin | Review queue (scoped to operator's viewers) |
+| `/api/fp/check/<fingerprint>` | GET | All | Check if fingerprint is suppressed |
+| `/api/fp/batch-check` | POST | All | Batch check fingerprints |
+
+### Activity & Reporting
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/activity` | GET | Admin | Activity logs with filters |
+| `/api/activity/users` | GET | Admin | User activity stats |
+| `/api/export-report` | GET | All | Export HTML report |
+
+### Webhook
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/github/webhook` | POST | GitHub webhook receiver |
 
 ## Project Structure
 
 ```
 VIRTUAL_PLUMBER/
-├── run.py                 # App entry point
-├── requirements.txt      # Dependencies
-├── .env                  # Auto-created config
-├── app/                  # Flask app
+├── run.py                    # Entry point (auto-update on startup)
+├── requirements.txt          # Python dependencies
+├── .env                      # Config (auto-generated from Settings)
+├── setup.sh                  # Automated setup script
+├── AGENTS.md                 # Agent/developer documentation
+├── app/
+│   ├── __init__.py           # App factory, DB init, blueprints
+│   ├── routes.py             # Dashboard + core API endpoints
+│   ├── auth_routes.py        # Login/logout/password management
+│   ├── fp_routes.py          # False positive API endpoints
+│   └── templates/            # HTML templates
+│       ├── dashboard.html
+│       ├── login.html
+│       ├── change_password.html
+│       ├── fp_dashboard.html
+│       ├── scan_detail.html
+│       └── user_activity.html
+├── static/
+│   ├── dashboard.js          # Main frontend logic
+│   ├── fp.js                 # FP management frontend
+│   ├── styles.css
+│   ├── styles-base.css
+│   ├── styles-components.css
+│   └── styles-responsive.css
+├── auth/
 │   ├── __init__.py
-│   ├── routes.py
-│   └── templates/
-├── modules/              # Core logic
-│   ├── control_apis.py
-│   ├── pr_scan_handler.py
-│   ├── github_status.py
-│   └── pr_comment.py
-├── models/               # Database
-│   └── database.py
-├── static/               # Frontend
-│   ├── dashboard.js
-│   └── styles.css
-└── logs/                 # Output
-    ├── app.log
-    └── tool-output/
+│   ├── decorators.py         # @require_login, @require_admin, @require_role
+│   └── utils.py              # Session management, audit logging
+├── modules/
+│   ├── control_apis.py       # Core scan workflow (clone, scan, merge)
+│   ├── repos.py              # GitHub App JWT auth, repo fetching
+│   ├── history.py            # Scan history data
+│   ├── fp_manager.py         # FP request lifecycle (submit → approve → reject → revert)
+│   ├── pr_scan_handler.py    # PR scan orchestration
+│   ├── github_status.py      # GitHub commit status checks
+│   ├── pr_comment.py         # PR comment posting
+│   ├── settings.py           # Settings management
+│   ├── scan_api.py           # Scan API endpoints
+│   ├── scan_controller.py    # Scan orchestration
+│   └── env_config.py         # Environment configuration
+├── models/
+│   ├── database.py           # User, Session, AuditLog, ScanHistory models
+│   └── false_positive.py     # FalsePositiveRecord model
+├── utils/
+│   ├── crypto_utils.py       # Encryption utilities
+│   └── fingerprint.py        # Finding fingerprint generation
+├── validators/
+│   └── input_validators.py   # Username/password/email validation
+├── logs/
+│   ├── app.log
+│   └── tool-output/{scan_id}/
+│       ├── merged.json
+│       ├── opengrep.json
+│       ├── truffle.json
+│       └── trivy.json
+└── tmp/                      # Cloned repos (auto-cleaned)
 ```
 
-## Need Help?
+## Troubleshooting
 
-1. Check `logs/app.log` for errors
-2. Verify all tools are in PATH
-3. Ensure ngrok tunnel is active
-4. Verify GitHub App permissions and webhook
+```bash
+# Check logs
+tail -f logs/app.log
+
+# Verify tools
+which opengrep trufflehog trivy git
+
+# Quick DB check
+sqlite3 virtual_plumber.db "SELECT * FROM scan_history ORDER BY created_at DESC LIMIT 5;"
+
+# Test scan API
+curl http://localhost:5000/api/history
+curl http://localhost:5000/api/overview
+```
+
+### Common Issues
+1. **WSL paths** — Always use `get_wsl_path()` for Windows → WSL path conversion
+2. **Token expiration** — GitHub JWT expires after 5 minutes (handled by repos.py)
+3. **RSA key format** — `.env` uses escaped `\n`, restored by env_config.py
+4. **Trivy SBOM only** — Uses `trivy sbom --format cyclonedx`, not vulnerability scans
+5. **Missing tools** — Scan continues but marks tool as `skipped`
+6. **Webhook signature** — Must match between GitHub App settings and dashboard
